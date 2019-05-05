@@ -1,0 +1,265 @@
+#include <assert.h>
+#include <iostream>
+#include <time.h>
+
+#include "Common.h"
+
+#include "Circuit.h"
+#include "Parser.h"
+#include "NodeFactory.h"
+#include "Solver.h"
+
+bool verbose;//(*)
+
+
+bool silent;
+
+inline void printUsage()
+{
+		cout << "Usage: solver [-v] [-silent] [-iscas outfile] [-t limit] [-larify] \n";
+		cout <<	"         [-phase [exist/univ]] [-proof <problem_file> <proof_file>]\n";
+		cout << "         filename [timeout]\n";
+		cout << "   Options:\n";
+		cout << "      -v        verbose\n";
+		cout << "      -silent   suppresses statistics output\n";
+		cout << "      -iscas    write optimized ISCAS representation to \n";
+		cout << "                outfile instead of solving\n";
+		cout << "      -t        stop when time limit reached\n";
+		cout << "      -test     Propagation testing mode\n";
+		cout << "      -larify   Enables splitting of gates by quantifier number\n";
+		cout << "      -phase    Remember phases\n";
+		cout << "      timeout   An integer stating the timeout - an alternative\n";
+		cout << "                way to state the time limit\n";
+		cout << "      -proof    Outputs the preprocessed circuit into <problem_file>\n";
+		cout << "                and the proof trace into <proof_file>\n";
+}
+
+int main( int argc, char ** argv )
+{
+	silent = false;
+
+	/*************************************************************************
+	Process arguments
+	*************************************************************************/
+    if( argc < 2 )
+	{
+		printUsage();
+		return 1;
+    }
+
+	// (*) !!!
+	char *filename = NULL;
+	char *iscas_file = NULL;
+	char *proof_file = NULL;
+	bool test = false;
+	verbose = false;
+	bool print_iscas = false;
+	int solver_time_out = -1; // (*) negative = no time out
+
+	Common::larify = false;
+
+	for( int i = 1; i < argc; i++ )
+	{
+		if( argv[i][0] == '-' )
+		{
+			if( argv[i][1] == 'v' )
+				verbose = true;
+			else if( strcmp( argv[i], "-iscas" ) == 0 )
+			{
+				print_iscas = true;
+				iscas_file = argv[++i];
+			}
+			else if( strcmp( argv[i], "-test" ) == 0 )
+			{
+				test = true;
+			}
+			else if( argv[i][1] == 't' )
+			{
+				solver_time_out = atoi( argv[++i] );
+			}
+			else if( strcmp( argv[i], "-larify" ) == 0 )
+			{
+				Common::larify = true;
+			}
+			else if( strcmp( argv[i], "-silent" ) == 0 )
+			{
+				silent = true;
+			}
+			else if( strcmp( argv[i], "-phase" ) == 0 )
+			{
+				Common::phase = true;
+
+				if(i + 1 < argc)
+				{
+					i++;
+					if(strcmp( argv[i], "exist" ) == 0)
+						Common::phase_exist = true;
+					else if(strcmp( argv[i], "univ" ) == 0)
+						Common::phase_exist = false;
+					else
+						i--;
+				}
+			}
+			else if( strcmp( argv[i], "-proof" ) == 0 )
+			{
+				Common::do_proof = true;
+				if(i+2 >= argc)
+				{
+					printUsage();
+					return 1;
+				}
+				iscas_file = argv[++i];
+				proof_file = argv[++i];
+			}
+		}
+		else
+		{
+			if(filename != NULL)
+			{
+				printUsage();
+				return 1;
+			}
+
+			filename = argv[i];
+
+			if(argc > i+1)
+			{
+				solver_time_out = atoi( argv[i+1]);
+				i++;
+			}
+		}
+	}
+
+	/*************************************************************************
+	Parse and preprocess
+	*************************************************************************/
+	Circuit circuit;
+
+	clock_t start, end;
+	start = clock();
+
+	Common::timeout = solver_time_out;
+	Common::start_time = start;
+
+	bool timeout = false;
+	bool solvable;
+
+	try{
+		initNodeFactory();
+
+		if(test)
+		{
+			assert(false);
+			//testFile(filename);
+			return 0;
+		}
+
+		if(!parse(filename, circuit))
+		{
+			return -1;
+		}
+
+		Common::checkTime();
+
+		end = clock();
+
+
+		if(!TO_QBF && !silent)
+			cerr << "parse time: " << ((double)(end - start))/(double)CLOCKS_PER_SEC << endl;
+
+		start = clock();
+
+		if(Common::value == VALUE_UNASSIGNED)
+		{
+			if(!circuit.preprocess())
+				return -1;
+		}
+		Common::checkTime();
+		end = clock();
+
+		if(!TO_QBF && !silent)
+			cerr << "preprocess time: " << ((double)(end - start))/(double)CLOCKS_PER_SEC << endl;
+
+		if(TO_QBF && Common::value == VALUE_UNASSIGNED)
+		{
+			circuit.printQBF();
+			return 0;
+		}
+
+		if( (print_iscas || Common::do_proof) && Common::value == VALUE_UNASSIGNED)
+		{
+			ofstream fout;
+			fout.open( iscas_file );
+	
+			if(!fout.is_open())
+			{
+				error(" can't open ISCAS file");
+				return -1;
+			}
+
+			circuit.printIscas( fout );
+
+			fout.close();
+			if( print_iscas )
+			{
+				// don't solve
+				return 0;
+			}
+		}
+
+		if(Common::do_proof && Common::value == VALUE_UNASSIGNED)
+		{
+			Common::proof_file.open( proof_file );
+			if(!Common::proof_file.is_open())
+			{
+				error(" can't open proof file");
+				return -1;
+			}
+		}
+
+		/*************************************************************************
+		Solve
+		*************************************************************************/
+
+		Solver solver(&circuit, verbose, solver_time_out);
+
+
+		start = clock();
+		if(Common::value == VALUE_UNASSIGNED)
+			solvable = solver.solve();
+		else
+		{
+			if(!silent)
+				cerr << "Solved by preprocessing\n";
+			assert(Common::value == VALUE_TRUE || Common::value == VALUE_FALSE);
+			solvable = (Common::value == VALUE_TRUE);
+		}
+		end = clock();
+		if(!silent)
+		{
+			cerr << "solve time: " << ((double)(end - start))/(double)CLOCKS_PER_SEC << endl;
+			if( solvable ) cerr << "solution found" << endl;
+			else cerr << "no solution found" << endl;
+			solver.printStats();
+		}
+	}
+	catch( int ) //(*) TODO: sensible exception handling
+	{
+		timeout = true;
+		if(!silent)
+			cerr << "time out" << endl;
+	}
+    
+	if(Common::do_proof)
+	{
+		Common::proof_file.close();
+	}
+    
+	deleteAllNodes();
+
+	if(timeout)
+		return 30;
+	if(solvable)
+		return 10;
+	return 20;
+}

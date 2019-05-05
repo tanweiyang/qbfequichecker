@@ -1,0 +1,8 @@
+FORALL(X)
+EXISTS(Y)
+OUTPUT(g)
+g = OR(g_1, g_2)
+g_1 = AND(x, y)
+g_2 = AND(nx,ny)
+nx = not(x)
+ny = not(y)

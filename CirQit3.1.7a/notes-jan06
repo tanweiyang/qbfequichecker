@@ -1,0 +1,73 @@
+CirQit 2.0 with:
+ - Added universal reduction after each resolution step.
+   This prevents occasional problem where the reducible literals
+   prevent the unit implicant from being recognized.
+     (then the unit implicant is resolved upon. If it happens to
+       be a decision literal, this causes an assertion fault).
+   This is only relevant for Don't Care variables
+- Don't cares are now in both trees at the same time
+  (+some details to prevent unneeded propagation)
+- Added larify() - break down nodes by quantifier level,
+   to achieve better utilization of universal reduction
+   (for eg, in planning infer that all action uniqueness 
+    axioms have to hold rather just for a particular action.
+    This couldn't be done before because we needed to reduce 
+    the universal variables)
+    
+- Larify is now controlled by input parameter
+- Added number of backtracks to output stats
+
+- Added remembering phases
+
+
+- Added qpro input format
+
+
+started on caching negations (not done.. just some junk code)
+
+- UndoRecord is now a single class
+- Undoing no longer creates and deletes
+
+- Added sorting children by block
+    (... in descending order!)
+
+- UPstack is now done locally, without new and delete
+
+- Added framework for initial preprocessing on the tree (DummyTreeNode)
+
+- Added simplification on the leafs (rules like (a^f(a) == a^f(false)))
+
+CirQit2.0.7.3
+- Started simplification on formulas
+   - added nameFunction which finds the same formulas, and their negations
+   - modified checkDown to also process children
+   2.0.7.3.1:
+   - added merging negations in makeCircuit
+
+CirQit2.1
+- Changed i/o format to suit the competition
+
+CirQit2.1b
+- Fixed small errors: 
+<    assignments.del(children[i]->thisFunc, true);
+>    assignments.del(children[j]->thisFunc, true);
+- Fixed (string) error messages so they'll display properly
+
+
+CirQit3.1.1
+- Adding proof tracing
+  -> option -proof
+  -> got rid of reason stack
+  -> new format for Reason and matching functions in NotGate, AndOrGate and LearnedSet.
+
+cirQit3.1.2
+- Outputs the proof.
+  -> added reason for "output" at newDecisionLevel
+  -> added getEmpty() to explicitely derive the empty clause
+
+cirQit3.1.3
+- Fixing the sorting function
+
+cirQit3.1.4
+- Fixing the segmentation fault error with solved by preprocessing
+- Modified include files - on some systems memset was not found

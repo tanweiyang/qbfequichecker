@@ -1,0 +1,123 @@
+#ifndef _cCOMMON_H_
+#define _cCOMMON_H_
+
+#include <assert.h>
+#include <iostream>
+#include <fstream>
+#include <time.h>
+#include <cstring>
+#include <cstdlib>
+using namespace std;
+
+
+// Note: these values are used as indexes into the array notify_list
+// Therefore they should be consecutive starting at 0, for best performance
+// NOTIFY_SIZE is the size of that array and should be equal to the
+// last used index + 1
+
+// Also used for Literal bookkeeping: vars_to_literals (*)
+#define VALUE_UNASSIGNED    3
+#define VALUE_TRUE          1
+#define VALUE_FALSE         0
+#define VALUE_DONT_CARE     2
+
+//#define TURN_OFF_DC
+
+#define JUSTIFIED_RECOVER
+//#define JUSTIFIED_MERGE
+
+//#define TO_QBF true
+#define TO_QBF false
+
+// The size of the array to keep all values
+// For notification
+#define NOTIFY_SIZE 3
+
+
+// Return value from functions involved in solving
+// Change caused a conflict to be found
+#define CONFLICT            -1
+// Successfully completed
+#define OK                  0
+// Chage caused a solution to be found
+#define QSAT                1
+
+// Used to distinguish between clauses and cubes in LearningDB
+// Also used in LeafNode to keep track of scores
+#define SET_CLAUSE 0
+#define SET_CUBE 1
+// Number of possible learned sets:
+#define SETS 2
+
+#define TIME_OUT_ERROR -1
+
+void error(const char* description);
+
+
+// Configuration constants
+class Common
+{
+public:
+	static bool larify;
+	static long backtracks;
+
+	static bool phase; // To phase or not to phase!
+	static bool phase_exist; 
+
+	static bool preprocess;
+
+	/* Should we use qpro input format?
+	 * 0=iscas, 1=qpro, 2=qdimacs, 3=qdimacs,print qpro,exit.
+	 * 4=qdimacs_naive, 5=qdimacs_naive,print qpro,exit.
+	 */
+	static int qpro;
+
+	// Keep track of temporary names
+	static int tmp;
+
+	// If solved by preproc, set this
+	static int value;
+
+	// --------------- Timeout handling
+	static clock_t start_time;
+	static unsigned timeout;
+
+	static void checkTime()
+	{
+		unsigned diff = (clock() - start_time)/CLOCKS_PER_SEC; 
+		if( diff > timeout ) 
+		{
+			throw TIME_OUT_ERROR;
+		}
+	}
+
+	// --------------- Proofs
+	static bool do_proof; // Should we output the proof?
+	static ofstream proof_file;
+};
+
+string getNewName();
+
+
+inline int opposite( int value )
+{
+	assert( value == VALUE_TRUE || value == VALUE_FALSE );
+    return (value == VALUE_TRUE) ? VALUE_FALSE : VALUE_TRUE;
+}
+
+// Helper function: convert an integer to string
+string toSt(int i);
+
+// Tweaks to the solver:
+#define UEWATCH
+
+#define DB_IMMEDIATE
+//(*) ^^^^
+
+
+// For stacks: how much to allocate,
+// how much to increment when reallocating
+#define FIRST_BATCH 300
+#define INCREMENT   30
+
+#endif

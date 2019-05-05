@@ -1,0 +1,716 @@
+#include "Parser.h"
+#include "Tester.h"
+#include <string>
+#include <sstream>
+
+#include <limits>
+
+
+#include "DummyTree.h"
+
+// Helper class for the parse function
+// Not open to the 'outside world'
+class Parser
+{
+private:
+	ifstream infile;
+	char lastChar;
+	int linenum; // number of the line currently being read
+
+	// Returns true iff c is a delimiter
+	bool isdelim(char c)
+	{
+		return	c == '(' ||
+				c == ')' ||
+				c == '=' ||
+				c == ',' ||
+				isspace(c);
+	}
+
+	// Read the next character from the file
+	void getChar()
+	{
+		assert(!infile.eof());
+		infile.get(lastChar);
+		lastChar = toupper(lastChar);
+
+		if(lastChar == '#') // Skip comments
+		{
+			while(lastChar != '\n' && !infile.eof())
+				infile.get(lastChar);
+		}
+		if(lastChar == '\n')
+				linenum++;
+
+		if(infile.eof())
+			lastChar = '\0';
+	}
+
+	void skipWhitespace()
+	{
+		while(isspace(lastChar) && lastChar != '\0')
+		{
+			getChar();
+		}
+	}
+
+public:
+	Parser(){};
+
+	// Returns the number of the current line
+	int getLineNum()
+	{
+		return linenum;
+	}
+
+	bool init(char *filename)
+	{
+		linenum = 1;
+		infile.open( filename );
+		if(!infile.is_open())
+		{
+			error(" can't open file");
+			return false;
+		}
+		if(infile.eof())
+		{
+			error(" file is empty");
+			return false;
+		}
+		lastChar = ' '; // Whitespace is skipped
+		return true;
+	};
+
+	// Gets the next token from the input
+	// Skips whitespace
+	// If can't, signals an error: unexpected end of file
+	// and returns an empty string
+	string getToken()
+	{
+		string result = "";
+		skipWhitespace();
+		if(lastChar == '\0')
+		{
+			error("unexpected end of file");
+			return result;
+		}
+
+		if(isdelim(lastChar))
+		{
+			result += lastChar;
+			getChar();
+		}
+		else
+		{
+			while(!infile.eof() && !isdelim(lastChar))
+			{
+				result += lastChar;
+				getChar();
+			}
+		}
+		return result;
+	}
+
+	char peek()
+	{
+		skipWhitespace();
+		return lastChar;
+	}
+
+	// Unless the given string is read, signals an error
+	bool assertS(string exp)
+	{
+		string s = getToken();
+		if(exp != s)
+		{
+			error(("Expected " + exp + ", received " + s + " on line " + 
+										toSt(linenum)).c_str());
+			assert(false); //(*) check throwing and catching
+			return false;
+		}
+		return true;
+	}
+
+	// Get the strings from a bracketed, coma-separated list
+	// put them into the passed vector.
+	bool getList(vector<string> &list)
+	{		
+		if(!assertS("("))
+			return false;
+		string s = getToken();
+		do
+		{
+			/*
+			if(!is_word(s))
+			{
+				error(("Non-alphanumeric variable: " + s + " on line " + 
+										toSt(linenum)).c_str());
+				return false;
+			}(*)
+			*/
+
+			list.push_back(s);
+			if(peek() != ')')
+				assertS(",");
+			s = getToken();
+		} while(s != ")");
+		return true;
+	}
+
+	bool eof()
+	{
+		skipWhitespace();
+		return lastChar == '\0';
+	}
+};
+
+// Read in the list of integers into vector
+void readIntList(vector<string> &vec, ifstream &infile)
+{
+	char p;
+	while(true)
+	{
+		infile >> ws;
+		p = infile.peek();
+		if(!isdigit(p))
+			return;
+		int i;
+		infile >> i;
+		vec.push_back(toSt(i));
+	}
+}
+
+void readIntList(DummyTreeNode *node, ifstream &infile, bool invert)
+{
+	char p;
+	while(true)
+	{
+		infile >> ws;
+		p = infile.peek();
+		if(!isdigit(p))
+			return;
+		int i;
+		infile >> i;
+		if(invert)
+			i = 0 - i;
+		node->addChild(i);
+	}
+}
+// Read in the list of integers from string
+void readIntList(DummyTreeNode *node, string str, bool invert)
+{
+	stringstream s(str);
+	char p;
+	s >> ws;
+	while(!s.eof())
+	{
+		s >> ws;
+		p = s.peek();
+		if(!isdigit(p))
+		{
+			error(((string)"Not an integer: " + p).c_str());
+			assert(false);
+		}
+		int i;
+		s >> i;
+		if(invert)
+			i = 0 - i;
+		node->addChild(i);
+		s>>ws;
+	}
+}
+
+
+// Read in the list of integers into vector from string
+void readIntList(vector<string> &vec, string str, string prepend = "")
+{
+	stringstream s(str);
+	char p;
+	s >> ws;
+	while(!s.eof())
+	{
+		s >> ws;
+		p = s.peek();
+		if(!isdigit(p))
+		{
+			error(((string)"Not an integer: " + p).c_str());
+			assert(false);
+		}
+		int i;
+		s >> i;
+		vec.push_back(prepend + toSt(i));
+		s>>ws;
+	}
+}
+
+DummyTreeNode *parseBlock(ifstream &infile)
+{
+	char c, p;
+	DummyTreeNode* result = NULL;
+
+	infile >> ws;
+	infile >> c;
+	if(c == 'q')
+	{
+		DummyTreeNode *prev = NULL;
+		DummyTreeNode *curr = NULL;
+		infile >>ws;
+		p = infile.peek();
+		while(p == 'a' || p == 'e')
+		{
+			if(infile)
+			infile >> p;
+
+			if(p == 'a')
+			{
+				curr = new DummyTreeNode(QA_GATE);
+			}
+			else
+			{
+				assert(p == 'e');
+				curr = new DummyTreeNode(QE_GATE);
+			}
+
+			if(result == NULL)
+			{
+				assert(prev == NULL);
+				result = curr;
+			}
+			if(prev != NULL)
+				prev->addChild(curr);
+			
+
+			readIntList(curr, infile, false);
+
+			infile >>ws;
+			p = infile.peek();
+
+			readIntList(curr, infile, true);
+			prev = curr;
+		}
+
+		// now result is the first of the chain, curr - last
+
+		curr->addChild(parseBlock(infile));
+
+		infile >> p;
+		assert(p == '/');
+		infile >> p;
+		assert(p == c);
+	}
+	else if(c == 'd' || c == 'c')
+	{
+		if(c == 'c')
+			result = new DummyTreeNode(AND_GATE);
+		else
+			result = new DummyTreeNode(OR_GATE);
+
+		string s;
+		getline(infile, s);
+		readIntList(result, s, false);
+
+		// First line is the end of the line with 'd' or 'c' on it, so should be empty
+		assert(result->empty());
+
+		getline(infile, s);
+		readIntList(result, s, false); // First line: positive
+		getline(infile, s);
+		readIntList(result, s, true); // Second line: negative
+
+		infile >>ws;
+		p = infile.peek();
+		while(p != '/')
+		{
+			result->addChild(parseBlock(infile));
+			infile >>ws;
+			p = infile.peek();
+		}
+		infile >> p;
+		assert(p == '/');
+		infile >> p;
+		assert(p == c);
+	}
+	else
+	{
+		error(((string)"Expected block start, got " + c).c_str());
+		assert(false);
+	}
+	return result;
+}
+
+
+bool parse_qpro1(ifstream &infile, Circuit &circuit)
+{
+	char c;
+	string s;
+
+	// Skip comment lines
+	while(!infile.eof())
+	{
+		infile >>ws;
+		c = infile.peek();
+		if(c != 'c')
+			break;
+		infile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+	}
+
+	if(infile.eof())
+	{
+		error("File ended with only comments!");
+		return false;
+	}
+
+	// Read the number of variables
+	infile >> s;
+	if(s != "QBF")
+	{
+		error(("Expected \"QBF\", got " + s).c_str());
+		return false;
+	}
+
+	int vars;
+	infile >> vars;
+
+	if(infile.fail() || vars < 1)
+	{
+		error("Invalid number of variables");
+		return false;
+	}
+
+	DummyTreeNode *root = parseBlock(infile);
+
+	int allVars = -1;
+	int value = dummyTreePreproc(root, vars+1, &allVars);
+
+	if(value == VALUE_UNASSIGNED)
+	{
+		assert(allVars > 0);
+		IntSet assignments(allVars);
+		root->makeCircuit(circuit, "output", assignments);
+
+		circuit.addOutput("output");
+		circuit.finalize();
+		Common::value = VALUE_UNASSIGNED;
+	}
+	else
+	{
+		Common::value = value;
+	}
+
+	return true;
+}
+
+
+
+bool addBlock(string name, ifstream &infile, Circuit &circuit)
+{
+	char c, p;
+
+	infile >> ws;
+	infile >> c;
+	if(c == 'q')
+	{
+		infile >>ws;
+		p = infile.peek();
+		while(p == 'a' || p == 'e')
+		{
+			infile >> p;
+
+			int type = EXISTENTIAL;
+			if(p == 'a')
+				type = UNIVERSAL;
+			vector<string> list;
+
+			// Read in the list 
+			readIntList(list, infile);
+			assert(list.size() > 0);
+			circuit.addQuantifier(list, type);
+			infile >>ws;
+			p = infile.peek();
+
+			for(int i = 0; i < list.size(); i++)
+			{
+				vector<string> vec;
+				vec.push_back(list[i]);
+				circuit.addGate("n" + list[i], NOT_GATE, vec);
+			}
+		}
+
+		addBlock(name, infile, circuit);
+
+		infile >> p;
+		assert(p == '/');
+		infile >> p;
+		assert(p == c);
+	}
+	else if(c == 'd' || c == 'c')
+	{
+		int type = AND_GATE;
+		if(c == 'd')
+			type = OR_GATE;
+		vector<string> list;
+		string s;
+		getline(infile, s);
+		readIntList(list, s);
+		// First line is the end of the line with 'd' or 'c' on it, so should be empty
+		assert(list.size() == 0);
+
+		getline(infile, s);
+		readIntList(list, s); // First line: positive
+		getline(infile, s);
+		readIntList(list, s, "n"); // Second line: negative
+
+		infile >>ws;
+		p = infile.peek();
+		while(p != '/')
+		{
+			string nname = getNewName();
+			addBlock(nname, infile, circuit);
+			list.push_back(nname);
+			infile >>ws;
+			p = infile.peek();
+		}
+		infile >> p;
+		assert(p == '/');
+		infile >> p;
+		assert(p == c);
+		circuit.addGate(name, type, list);
+	}
+	else
+	{
+		error(((string)"Expected block start, got " + c).c_str());
+		return false;
+	}
+	return true;
+}
+
+
+bool parse_qpro(ifstream &infile, Circuit &circuit)
+{
+	char c;
+	string s;
+
+	// Skip comment lines
+	while(!infile.eof())
+	{
+		infile >>ws;
+		c = infile.peek();
+		if(c != 'c')
+			break;
+		infile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+	}
+
+	if(infile.eof())
+	{
+		error("File ended with only comments!");
+		return false;
+	}
+
+	// Read the number of variables
+	infile >> s;
+	if(s != "QBF")
+	{
+		error(("Expected \"QBF\", got " + s).c_str());
+		return false;
+	}
+
+	int vars;
+	infile >> vars;
+
+	if(infile.fail() || vars < 1)
+	{
+		error("Invalid number of variables");
+		return false;
+	}
+
+	if(!addBlock("output", infile, circuit))
+		return false;
+
+	circuit.addOutput("output");
+	circuit.finalize();
+	return true;
+}
+
+
+// Parse ISCAS 85 format
+// It test is true, finish processing the file as soon as found token :TEST_START:
+bool parse(Parser &p, Circuit &circuit, bool test = false)
+{
+	while(!p.eof())
+	{
+		string s = p.getToken();
+
+		if(test && s == ":TEST_START:")
+		{
+			break;
+		}
+
+		if(s == "EXISTS")
+		{
+			vector<string> list;
+			p.getList(list);
+			circuit.addQuantifier(list, EXISTENTIAL);
+		}
+		else if(s == "FORALL")
+		{
+			vector<string> list;
+			p.getList(list);
+			circuit.addQuantifier(list, UNIVERSAL);
+		}
+		else if(s == "INPUT")
+		{
+			vector<string> list;
+			p.getList(list);
+			circuit.addInputs(list);
+		}
+		else if(s == "OUTPUT")
+		{
+			vector<string> list;
+			p.getList(list);
+			circuit.addOutputs(list);
+		}
+		else //if(is_word(s))
+		{
+			p.assertS("=");
+			string type_n = p.getToken();
+			int type;
+			if(type_n == "NOT")
+				type = NOT_GATE;
+			else if (type_n == "AND")
+				type = AND_GATE;
+			else if (type_n == "OR")
+				type = OR_GATE;
+			else
+			{
+				error(("Unknown gate type: " + type_n + " on line " + 
+										toSt(p.getLineNum())   ).c_str());
+				return false;
+			}
+
+			vector<string> list;
+			p.getList(list);
+			circuit.addGate(s, type, list);
+		}
+		/*
+		else
+		{
+			error(("Unexpected line start: " + s + " on line " + 
+										toSt(p.getLineNum())).c_str());
+			return false;
+		}(*)
+		*/
+	}
+
+	circuit.finalize();
+
+	return true;
+}
+
+
+/*
+Assumes the contents of the file "filename" are in ISCAS format
+Parses the information and stores it in circuit
+Returns true if parsed successfully,
+False on error (after outputting the error message to cerr)
+*/
+bool parse(char * filename, Circuit &circuit)
+{
+	/*************************************************************************
+	Parse
+	*************************************************************************/
+
+	if(Common::qpro)
+	{
+		ifstream infile;
+		infile.open(filename);
+		if(!infile.is_open())
+		{
+			error("Cannot open file");
+			return false;
+		}
+		return parse_qpro1(infile, circuit);
+	}
+	else
+	{
+		Parser p;
+		if(!p.init(filename))
+			return false;
+
+		return parse(p, circuit);
+	}
+}
+/*
+bool parseAndDoTests(Parser &p, Tester &t)
+{
+	while(!p.eof())
+	{
+		string s = p.getToken();
+
+		if(s == "PRINT")
+		{
+			t.printValue(p.getToken());
+		}
+		else if(s == "UP")
+		{
+			//(*)
+			//t.propagate();
+		}
+		else if(s == "ADD")
+		{
+			string s1;
+			s1 = p.getToken();
+			assert(s1 == "CUBE" || s1 == "CLAUSE");
+			string type = s1;
+			s1 = p.getToken();
+			assert(s1 == "(");
+
+			vector<string> vv;
+			bool first = true;
+			while(s1 != ")")
+			{
+				if(!first)
+					assert(s1 == ",");
+				else
+					first = false;
+				s1 = p.getToken();
+				vv.push_back(s1);
+				s1 = p.getToken();
+				assert(s1 == "=");
+				s1 = p.getToken();
+				vv.push_back(s1);
+				s1 = p.getToken();
+			}
+			t.addLearnedSet(type, vv);
+		}
+		else
+		{
+			// Variable assignment
+			string s2 = p.getToken();
+			assert(s2=="=");
+			s2 = p.getToken();
+			t.addToUP(s, s2);
+		}
+	}
+
+	return true;
+}
+
+bool testFile(char * filename)
+{
+
+	Parser p;
+	Circuit circuit;
+
+	if(!p.init(filename))
+		return false;
+
+	if(!parse(p, circuit, true))
+	{
+		return false;
+	}
+
+	//Tester tester(&circuit);
+
+	//return parseAndDoTests(p, tester);
+}
+*/

@@ -1,0 +1,2 @@
+1 ( gate-G_1-1 a G_1 a -Y )  r G_1 ( gate-G-2 a G a -G_1 a -G_2 )  r -G_2 ( gate-G_2-0 a G_2 a -NX )  u -Y | 1
+1 ( gate-NY-1 a NY a Y )  r NY ( gate-G_2-1 a G_2 a -NY )  r G_2 ( gate-G-2 a G a -G_1 a -G_2 )  r -G_1 ( gate-G_1-0 a G_1 a -X )  u Y r -X ( gate-NX-1 a NX a X )  r NX ( c-1 a G a -NX )  r G ( o a -G )  | 2

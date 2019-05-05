@@ -1,0 +1,8 @@
+# do make -f Makefile_pg   to compile cirqit_pg  for gprof profiling
+
+CFLAGS = -Wall -O5 --static -Wno-sign-compare -Wno-unused-variable
+CFLAGS = -Wall -O0 -g -pg --static -Wno-sign-compare -Wno-unused-variable
+
+cirqit_pg:
+	g++ $(CFLAGS) -o cirqit_pg *.cpp
+
